@@ -5,7 +5,9 @@ import PredecessorItem = GanttChartView.PredecessorItem;
 
 declare var angular;
 angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directives'])
-    .controller('MainController', ($scope, $timeout) => {
+    .controller('MainController', ($scope, $http, $timeout) => {
+        // URL for Project data access Web API, to support loading items and saving item changes to a server side database.
+        var projectDataAccessWebApiUrl = 'http://localhost:53722/api';
         // Internal functions.
         function refresh(): void {
             $scope.$apply();
@@ -52,6 +54,23 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
             // },
             currentTime: new Date(2016, 2 - 1, 12) // Display the current time vertical line of the chart at the project start date.
         };
+        // Define schedule.
+        // settings.schedule = {
+        //      workingWeekStart: 1, workingWeekFinish: 5, // Monday - Friday
+        //      visibleDayStart: 8 * 60 * 60 * 1000, visibleDayFinish: 16 * 60 * 60 * 1000 // 8 AM - 4 PM
+        //      // , specialNonworkingDays: [new Date(2016, 2 - 1, 19), new Date(2016, 2 - 1, 21)] // excluded
+        // };
+        // var specialSchedule = <GanttChartView.Schedule>{
+        //      workingWeekStart: 0, workingWeekFinish: 3, // Sunday - Wednesday
+        //      workingDayStart: 9 * 60 * 60 * 1000, workingDayFinish: 19 * 60 * 60 * 1000 // 9 AM - 7 PM, exceeding visible 4 PM
+        //      // , specialNonworkingDays: [new Date(2016, 2 - 1, 18), new Date(2016, 2 - 1, 21), new Date(2016, 2 - 1, 22)] // partial replacement for excluded dates
+        // };
+        // items[4].schedule = specialSchedule;
+        // items[5].schedule = specialSchedule;
+        // Configure selection.
+        // settings.selectionMode = 'Extended'; // Supported values: None, Focus (default), Single, Extended, ExtendedFocus.
+        // settings.selectedItemStyle = 'background: LightCyan';
+        // items[6].isSelected = true;
         // Customize columns.
         var columns = GanttChartView.getDefaultColumns(items, settings);
         var indexOffset = columns[0].isSelection ? 1 : 0;
@@ -75,22 +94,69 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
         //         function (value) { item['targetDate'] = GanttChartView.getOutputDate(value); }); } });
         settings.columns = columns;
         $scope.settings = settings;
-        // Handle item changes.
-        $scope.onItemChanged = (item: GanttChartItem, propertyName: string, isDirect: boolean, isFinal: boolean): void => {
-            if (!isDirect || !isFinal) // Skip internal changes, and changes occurred during drag operations.
-                return;
-            console.log(propertyName + ' changed for ' + item.content + '.');
-        };
         // Underlying GanttChartView component reference.
         var ganttChartView = <GanttChartView.Element>document.getElementById('ganttChartView');
+        // Data transfer object conversions to support loading and saving items from and to a server side database.
+        var getItems = (taskDtos) => {
+            var items = taskDtos;
+            var getItemById = (id) => {
+                for (var k = 0; k < items.length; k++) {
+                    if (items[k]['Id'] == id)
+                        return items[k];
+                }
+            };
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                item.content = item['Name'];
+                item.start = item['Start'];
+                item.finish = item['Finish'];
+                item.completedFinish = item['CompletedFinish'];
+                if (item['Assignments'])
+                    item.assignmentsContent = item['Assignments'];
+                item.indentation = item['Indentation'];
+                if (item['Predecessors'].length > 0) {
+                    item.predecessors = [];
+                    for (var j = 0; j < item['Predecessors'].length; j++) {
+                        var predecessor: PredecessorItem = item['Predecessors'][j];
+                        predecessor.item = getItemById(predecessor['SourceTaskId']);
+                        predecessor.dependencyType = predecessor['DependencyType'];
+                        item.predecessors.push(predecessor);
+                    }
+                }
+            }
+            return items;
+        };
+        var getTaskDto = (item) => {
+            var taskDto = { Name: item.content, Start: item.start, Finish: item.finish, CompletedFinish: item.completedFinish ? item.completedFinish : item.start, Assignments: item.assignmentsContent, Indentation: item.indentation, Predecessors: [] };
+            if (item.predecessors) {
+                for (var i = 0; i < item.predecessors.length; i++) {
+                    var predecessor: PredecessorItem = item.predecessors[i];
+                    if (!predecessor.item['Id'])
+                        continue;
+                    var predecessorDto = { SourceTaskId: predecessor.item['Id'], DependencyType: predecessor.dependencyType };
+                    taskDto.Predecessors.push(predecessorDto);
+                }
+            }
+            return taskDto;
+        };
         // Prepare command handlers.
+        var usingDatabase = false;
+        $scope.usingDatabase = usingDatabase;
         $scope.addNewItem = () => {
             var item: GanttChartItem = { content: 'New task', start: new Date(2016, 2 - 1, 11, 08), finish: new Date(2016, 2 - 1, 11, 16) };
             items.push(item);
             var selectedItem = ganttChartView.getSelectedItem();
             if (selectedItem)
                 ganttChartView.unselectItem(selectedItem);
-            ganttChartView.selectItem(item);
+            $timeout(() => {
+                ganttChartView.selectItem(item);
+                if (usingDatabase) {
+                    $http.put(projectDataAccessWebApiUrl + '/Tasks', getTaskDto(item))
+                        .then((response) => {
+                            item['Id'] = response.data.Id;
+                        });
+                }
+            }, 100);
         };
         $scope.insertNewItem = () => {
             var selectedItem = ganttChartView.getSelectedItem();
@@ -99,25 +165,28 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
             var item: GanttChartItem = { content: 'New task', indentation: selectedItem.indentation, start: new Date(2016, 2 - 1, 11, 08), finish: new Date(2016, 2 - 1, 11, 16) };
             items.splice(selectedItem.index, 0, item);
             ganttChartView.unselectItem(selectedItem);
-            ganttChartView.selectItem(item);
+            $timeout(() => {
+                ganttChartView.selectItem(item);
+            }, 100);
         };
         $scope.increaseItemIndentation = () => {
             var item = ganttChartView.getSelectedItem();
             if (!item)
                 return;
-            item.indentation++;
+            ganttChartView.increaseItemIndentation(item);
         };
         $scope.decreaseItemIndentation = () => {
             var item = ganttChartView.getSelectedItem();
             if (!item)
                 return;
-            if (item.indentation > 0)
-                item.indentation--;
+            ganttChartView.decreaseItemIndentation(item);
         };
         $scope.deleteItem = () => {
             var item = ganttChartView.getSelectedItem();
             if (!item)
                 return;
+            if (usingDatabase && item['Id'])
+                $http.delete(projectDataAccessWebApiUrl + '/Tasks/' + item['Id']);
             items.splice(item.index, 1);
         };
         $scope.setCustomBarColorToItem = () => {
@@ -137,7 +206,9 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
                 return;
             var item: GanttChartItem = { content: copiedItem.content, indentation: selectedItem.indentation, start: copiedItem.start, finish: copiedItem.finish, completedFinish: copiedItem.completedFinish, isMilestone: copiedItem.isMilestone, assignmentsContent: copiedItem.assignmentsContent, isRelativeToTimezone: copiedItem.isRelativeToTimezone };
             items.splice(selectedItem.index + 1, 0, item);
-            ganttChartView.unselectItem(selectedItem);
+            $timeout(() => {
+                ganttChartView.selectItem(item);
+            }, 100);
             ganttChartView.selectItem(item);
         };
         $scope.moveItemDown = () => {
@@ -208,6 +279,13 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
             // Alternatively, optimize work to obtain the minimum project finish date and time assuming unlimited resource availability:
             // ganttChartView.optimizeWork(false, true, settings.currentTime);
         };
+        $scope.loadItemsFromDatabase = () => {
+            $scope.usingDatabase = usingDatabase = true;
+            $http.get(projectDataAccessWebApiUrl + '/Tasks')
+                .then((response) => {
+                    $scope.items = items = getItems(response.data);
+                });
+        };
         $scope.isLoadProjectXmlPanelVisible = false;
         $scope.loadProjectXml = () => {
             $scope.isSaveProjectXmlPanelVisible = false;
@@ -237,5 +315,33 @@ angular.module('GanttChartViewSample', ['DlhSoft.ProjectData.GanttChart.Directiv
             // Print the task hierarchy column and a selected timeline page of 5 weeks (timeline end week extensions would be added automatically, if necessary).
             // Optionally, to rotate the print output and simulate Landscape printing mode (when the end user keeps Portrait selection in the Print dialog), append the rotate parameter set to true to the method call: rotate: true.
             ganttChartView.print({ title: 'Gantt Chart (printable)', isGridVisible: true, columnIndexes: [1], timelineStart: new Date(2016, 2 - 1, 1), timelineFinish: new Date(new Date(2016, 2 - 1, 1).valueOf() + 5 * 7 * 24 * 60 * 60 * 1000), preparingMessage: '...' });
+        };
+        // Handle item changes.
+        var lastChangedItem: GanttChartItem = null, updateItemTimeout;
+        var saveLastChangedItemToDatabase = () => {
+            var item = lastChangedItem;
+            if (!item)
+                return;
+            $http.post(projectDataAccessWebApiUrl + '/Tasks/' + item['Id'], getTaskDto(item));
+            lastChangedItem = null;
+        };
+        $scope.onItemChanged = (item: GanttChartItem, propertyName: string, isDirect: boolean, isFinal: boolean): void => {
+            if (!isDirect || !isFinal) // Skip internal changes, and changes occurred during drag operations.
+                return;
+            console.log(propertyName + ' changed for ' + item.content + '.');
+            if (!item['Id'] || (propertyName != 'content' && propertyName != 'start' && propertyName != 'finish' && propertyName != 'completedFinish' && propertyName != 'assignmentsContent' && propertyName != 'indentation' && propertyName != 'predecessors'))
+                return;
+            if (item != lastChangedItem && updateItemTimeout) {
+                clearTimeout(updateItemTimeout);
+                delete updateItemTimeout;
+                saveLastChangedItemToDatabase();
+            }
+            if (updateItemTimeout)
+                clearTimeout(updateItemTimeout);
+            lastChangedItem = item;
+            updateItemTimeout = setTimeout(() => {
+                saveLastChangedItemToDatabase();
+                delete updateItemTimeout;
+            }, 500); // Do not save changes immediately, to avoid too many server calls for the same item.
         };
     });

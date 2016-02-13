@@ -37,6 +37,7 @@
     <Content Include="Images\InsertNew.png" />
     <Content Include="Images\LevelResources.png" />
     <Content Include="Images\LoadChart.png" />
+    <Content Include="Images\LoadItemsFromDatabase.png" />
     <Content Include="Images\LoadProjectXml.png" />
     <Content Include="Images\MoveDown.png" />
     <Content Include="Images\MoveUp.png" />

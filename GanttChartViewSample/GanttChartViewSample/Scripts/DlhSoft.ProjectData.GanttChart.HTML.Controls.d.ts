@@ -1,8 +1,8 @@
 ﻿/* Assembly: DlhSoft.ProjectData.GanttChart.HTML.Controls,
    Company: DlhSoft,
    Product: Project Data Modern Library,
-   Version: 5.3.5.0,
-   Copyright: Copyright © 2012-2015 DlhSoft,
+   Version: 5.3.7.4,
+   Copyright: Copyright © 2012-2016 DlhSoft,
    Title: Project Data Gantt Chart HTML Controls,
    Description: Project Data Gantt Chart related HTML client components */
 
@@ -302,7 +302,7 @@ declare module DlhSoft.Controls {
             parts?: Item[];
 
             "class"?: string; style?: string;
-            barClass?: string; standardBarClass?: string; completedStandardBarClass?: string; summaryBarClass?: string; milestoneBarClass?: string; baselineBarClass?: string; barStyle?: string; standardBarStyle?: string; completedStandardBarStyle?: string; summaryBarStyle?: string; milestoneBarStyle?: string; baselineBarStyle?: string;
+            barClass?: string; standardBarClass?: string; completedBarClass?: string; summaryBarClass?: string; milestoneBarClass?: string; baselineBarClass?: string; barStyle?: string; standardBarStyle?: string; completedBarStyle?: string; summaryBarStyle?: string; milestoneBarStyle?: string; baselineBarStyle?: string;
             taskTemplate? (item: Item): SVGElement;
             template? (item: Item): SVGElement;
 
@@ -354,10 +354,10 @@ declare module DlhSoft.Controls {
             /** The finish day of the working week interval, used when computing task effort values and when dragging and dropping task bars; by default it is set to Friday (5); next days of the week are considered nonworking time and by default they are highlighted in the chart area. */
             workingWeekFinish?: number;
 
-            /** The start time of the visible day interval, in milliseconds passed since midnight; by default it is set to 8 AM; the start of the working time interval of the day is also defined using the same value. */
-            visibleDayStart?: number;
-            /** The finish time of the visible day interval, in milliseconds passed since midnight; by default it is set to 4 PM; the finish of the working time interval of the day is also defined using the same value. */
-            visibleDayFinish?: number;
+            /** The start time of the working day interval, in milliseconds passed since midnight; by default it is set to 8 AM; the start of the visible time interval of the day is also defined using the same value. */
+            workingDayStart?: number;
+            /** The finish time of the working day interval, in milliseconds passed since midnight; by default it is set to 4 PM; the finish of the visible time interval of the day is also defined using the same value. */
+            workingDayFinish?: number;
 
             /** Optional collection of special nonworking days, such as holidays. */
             specialNonworkingDays?: Date[];
@@ -453,7 +453,7 @@ declare module DlhSoft.Controls {
             barMargin?: number; barHeight?: number; barCornerRadius?: number;
             completedBarMargin?: number; completedBarHeight?: number; completedBarCornerRadius?: number;
 
-            styleDefinitionTemplate? (): SVGDefsElement;
+            styleDefinitionTemplate? (ganttChartView?: Element): SVGDefsElement;
             standardBarClass?: string; summaryBarClass?: string; milestoneBarClass?: string; standardBarStyle?: string; summaryBarStyle?: string; milestoneBarStyle?: string;
             standardCompletedBarClass?: string; standardCompletedBarStyle?: string;
             collapsedSummaryLineClass?: string; collapsedSummaryLineStyle?: string;
@@ -471,6 +471,8 @@ declare module DlhSoft.Controls {
             assignmentsTemplate? (item: Item): SVGElement;
 
             isTaskCompletedEffortVisible?: boolean;
+
+            isIndividualItemNonworkingTimeHighlighted?: boolean; areTaskInterruptionsHighlighted?: boolean;
 
             areTaskDependenciesVisible?: boolean;
             allowCreatingStartDependencies?: boolean; allowCreatingToFinishDependencies?: boolean;
@@ -561,7 +563,7 @@ declare module DlhSoft.Controls {
             /** Converts date and time values to text values whenever needed within the control; the function may be provided by the developer for further customization and/or localization purposes. */
             dateTimeFormatter? (dateTime: Date): string;
             /** Converts text values to date and time values whenever needed within the control; the function may be provided by the developer for further customization and/or localization purposes. */
-            dateParser? (text: string): Date;
+            dateTimeParser? (text: string): Date;
 
             /** Function called whenever the end user scrolls the chart area horizontally, changing the left most displayed time (settings.displayedTime). */
             displayedTimeChangeHandler? (displayedTime: Date): void;
